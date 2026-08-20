@@ -1,9 +1,13 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../l10n/app_localizations.dart';
+import '../models/disease_model.dart';
 import '../services/api_service.dart';
+import '../services/history_service.dart';
 import 'result_screen.dart';
 
 class ScanScreen extends StatefulWidget {
@@ -15,6 +19,8 @@ class ScanScreen extends StatefulWidget {
 
 class _ScanScreenState extends State<ScanScreen> {
   final ImagePicker _picker = ImagePicker();
+  final ApiService apiService = ApiService();
+  final HistoryService historyService = HistoryService();
 
   File? _image;
   bool _loading = false;
@@ -48,12 +54,114 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
 
+  void showLoadingDialog() {
+    final l10n = AppLocalizations.of(context)!;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+
+              const CircularProgressIndicator(),
+
+              const SizedBox(height: 20),
+
+              Text(
+                l10n.aiAnalyzing,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              Text(
+                l10n.pleaseWait,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+
+  Future<void> showSuccessDialog() async {
+    final l10n = AppLocalizations.of(context)!;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              const Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 35,
+              ),
+              const SizedBox(width: 10),
+              Text(l10n.success),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+
+              Text(
+                "✅ ${l10n.scanCompleted}",
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 12),
+
+              Text(
+                l10n.cropAnalyzed,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text(l10n.viewResult),
+            ),
+
+          ],
+        );
+      },
+    );
+  }
+
+
   Future<void> detectDisease() async {
+    final l10n = AppLocalizations.of(context)!;
 
     if (_image == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please select an image first."),
+        SnackBar(
+          content: Text(l10n.selectImageFirst),
         ),
       );
       return;
@@ -64,27 +172,53 @@ class _ScanScreenState extends State<ScanScreen> {
       _loading = true;
     });
 
+    showLoadingDialog();
 
-    // Sending selected image to AI service
-    final result = await ApiService().detectDisease(_image!);
+    try {
+      // Sending selected image to AI service
+      final DiseaseModel result = await apiService.detectDisease(_image!);
 
+      // Save scan into history
+      await historyService.saveScan(
+        result,
+        _image!.path,
+      );
 
-    setState(() {
-      _loading = false;
-    });
+      if (mounted) {
+        Navigator.pop(context);
+      }
 
+      await showSuccessDialog();
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ResultScreen(
-          diseaseName: result["name"],
-          confidence: result["confidence"],
-          remedy: result["remedy"],
+      print("History Saved Successfully");
+
+      setState(() {
+        _loading = false;
+      });
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ResultScreen(
+            disease: result,
+            image: _image!,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+      }
+      setState(() {
+        _loading = false;
+      });
 
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("${l10n.error}: ${e.toString()}"),
+        ),
+      );
+    }
   }
 
 
@@ -132,12 +266,13 @@ class _ScanScreenState extends State<ScanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
 
       appBar: AppBar(
 
-        title: const Text("Scan Crop"),
+        title: Text(l10n.scanCrop),
 
         centerTitle: true,
 
@@ -173,11 +308,11 @@ class _ScanScreenState extends State<ScanScreen> {
 
 
 
-            const Text(
+            Text(
 
-              "Crop Disease Detection",
+              l10n.scanTitle,
 
-              style: TextStyle(
+              style: const TextStyle(
 
                 fontSize: 26,
 
@@ -193,11 +328,11 @@ class _ScanScreenState extends State<ScanScreen> {
 
 
 
-            const Text(
+            Text(
 
-              "Capture or upload a leaf image",
+              l10n.scanSubtitle,
 
-              style: TextStyle(
+              style: const TextStyle(
 
                 color: Colors.grey,
 
@@ -213,7 +348,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
             Container(
 
-              height: 150,
+              height: 300,
 
               width: double.infinity,
 
@@ -239,13 +374,13 @@ class _ScanScreenState extends State<ScanScreen> {
 
               child: _image == null
 
-                  ? const Column(
+                  ? Column(
 
                       mainAxisAlignment: MainAxisAlignment.center,
 
                       children: [
 
-                        Icon(
+                        const Icon(
 
                           Icons.image,
 
@@ -255,9 +390,9 @@ class _ScanScreenState extends State<ScanScreen> {
 
                         ),
 
-                        SizedBox(height: 10),
+                        const SizedBox(height: 10),
 
-                        Text("No Image Selected"),
+                        Text(l10n.noImageSelected),
 
                       ],
 
@@ -272,7 +407,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
                         _image!,
 
-                        fit: BoxFit.cover,
+                        fit: BoxFit.contain,
 
                       ),
 
@@ -285,22 +420,18 @@ class _ScanScreenState extends State<ScanScreen> {
             const SizedBox(height: 15),
 
 
+            // Camera button only shown on Android (avoids crash on Windows,
+            // where the camera plugin has no desktop implementation).
+            if (!kIsWeb && Platform.isAndroid) ...[
+              button(
+                Icons.camera_alt,
+                l10n.openCamera,
+                Colors.green,
+                pickCamera,
+              ),
 
-            button(
-
-              Icons.camera_alt,
-
-              "Open Camera",
-
-              Colors.green,
-
-              pickCamera,
-
-            ),
-
-
-
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
+            ],
 
 
 
@@ -308,7 +439,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
               Icons.photo_library,
 
-              "Open Gallery",
+              l10n.openGallery,
 
               Colors.blue,
 
@@ -360,9 +491,9 @@ class _ScanScreenState extends State<ScanScreen> {
 
                   _loading
 
-                      ? "Detecting..."
+                      ? l10n.detecting
 
-                      : "Detect Disease",
+                      : l10n.detectDisease,
 
 
                   style: const TextStyle(
@@ -397,5 +528,4 @@ class _ScanScreenState extends State<ScanScreen> {
     );
 
   }
-
 }

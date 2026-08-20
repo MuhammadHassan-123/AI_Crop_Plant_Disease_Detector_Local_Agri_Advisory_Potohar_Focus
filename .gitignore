@@ -43,3 +43,35 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Project-specific files
+*.txt
+*.zip
+flutter_windows_*
+test_app/
+validation_images/
+images/
+build_error.txt
+build_log.txt
+analyze_errors.txt
+direct_run.txt
+error.txt
+log.txt
+log2.txt
+log3.txt
+untranslated.txt
+untranslated.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Generated Flutter files
+**/flutter/generated_plugin_registrant.cc
+**/flutter/generated_plugins.cmake
+**/Flutter/GeneratedPluginRegistrant.swift
+
+# Local Flutter SDK
+/flutter/

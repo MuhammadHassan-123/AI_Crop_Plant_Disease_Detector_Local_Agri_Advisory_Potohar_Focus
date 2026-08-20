@@ -1,92 +1,68 @@
+import 'dart:convert';
 import 'dart:io';
 
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
+
+import '../models/disease_model.dart';
 
 class ApiService {
-  // 👇 Apni Gemini API Key yahan paste karo
-  static const String apiKey = "static const String apiKey = "";";
+  // Windows/Desktop
+  static const String baseUrl = "http://127.0.0.1:8000";
 
-  Future<Map<String, dynamic>> detectDisease(File imageFile) async {
+  // Android Emulator:
+  // static const String baseUrl = "http://10.0.2.2:8000";
+
+  Future<DiseaseModel> detectDisease(File imageFile) async {
     try {
-      final model = GenerativeModel(
-        model: 'gemini-1.5-flash',
-        apiKey: apiKey,
+      var request = http.MultipartRequest(
+        "POST",
+        Uri.parse("$baseUrl/predict"),
       );
 
-      final imageBytes = await imageFile.readAsBytes();
-
-      final prompt = TextPart("""
-You are an expert agricultural plant pathologist.
-
-Analyze the uploaded crop leaf image.
-
-Return ONLY in this format:
-
-Disease: <Disease Name>
-
-Confidence: <0-100>
-
-Remedy: <Short Remedy>
-
-If the leaf is healthy, write:
-
-Disease: Healthy Leaf
-Confidence: 99
-Remedy: The crop appears healthy. Continue proper irrigation and fertilizer schedule.
-
-Do not write anything else.
-""");
-
-      final imagePart = DataPart(
-        "image/jpeg",
-        imageBytes,
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          "file",
+          imageFile.path,
+        ),
       );
 
-      final response = await model.generateContent([
-        Content.multi([
-          prompt,
-          imagePart,
-        ])
-      ]);
+      print("Uploading image...");
+      print("Path: ${imageFile.path}");
 
-      final text = response.text ?? "";
+      var streamedResponse = await request
+          .send()
+          .timeout(const Duration(seconds: 60));
 
-      String disease = "Unknown";
-      double confidence = 0.0;
-      String remedy = "No remedy found.";
+      var response =
+          await http.Response.fromStream(streamedResponse);
 
-      final lines = text.split("\n");
+      print("Backend Status: ${response.statusCode}");
+      print("Response: ${response.body}");
 
-      for (final line in lines) {
-        if (line.toLowerCase().startsWith("disease:")) {
-          disease = line.replaceFirst(RegExp(r'Disease:\s*', caseSensitive: false), "").trim();
-        }
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
 
-        if (line.toLowerCase().startsWith("confidence:")) {
-          final value = line
-              .replaceFirst(RegExp(r'Confidence:\s*', caseSensitive: false), "")
-              .replaceAll("%", "")
-              .trim();
-
-          confidence = (double.tryParse(value) ?? 0) / 100;
-        }
-
-        if (line.toLowerCase().startsWith("remedy:")) {
-          remedy = line.replaceFirst(RegExp(r'Remedy:\s*', caseSensitive: false), "").trim();
-        }
+        return DiseaseModel.fromJson(data);
+      } else {
+        return DiseaseModel(
+          name: "Server Error",
+          confidence: 0.0,
+          confidenceStatus: "Server Error",
+          remedy:
+              "Backend returned status ${response.statusCode}",
+          topPredictions: [],
+        );
       }
-
-      return {
-        "name": disease,
-        "confidence": confidence,
-        "remedy": remedy,
-      };
     } catch (e) {
-      return {
-        "name": "API Error",
-        "confidence": 0.0,
-        "remedy": e.toString(),
-      };
+      print("API Error: $e");
+
+      return DiseaseModel(
+        name: "Connection Error",
+        confidence: 0.0,
+        confidenceStatus: "Connection Failed",
+        remedy: e.toString(),
+        topPredictions: [],
+      );
     }
   }
 }

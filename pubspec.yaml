@@ -1,5 +1,7 @@
 name: ai_crop_disease_detector
+
 description: "AI Crop Disease Detector App"
+
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -11,10 +13,22 @@ dependencies:
   flutter:
     sdk: flutter
 
+  flutter_localizations:
+    sdk: flutter
+
   cupertino_icons: ^1.0.8
   image_picker: ^1.1.2
   http: ^1.2.2
-  google_generative_ai: ^0.4.7
+  shared_preferences: ^2.5.3
+  share_plus: ^11.1.0
+  path_provider: ^2.1.5
+  fl_chart: ^0.69.0
+  pdf: ^3.11.1
+  printing: ^5.13.4
+  provider: ^6.1.2
+  intl: ^0.20.2
+  url_launcher: ^6.3.2
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:
@@ -24,6 +38,14 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true
 
   assets:
     - assets/images/
+
+  fonts:
+    - family: NotoSans
+      fonts:
+        - asset: assets/images/fonts/NotoSans-Regular.ttf
+        - asset: assets/images/fonts/NotoSans-Bold.ttf
+          weight: 700
